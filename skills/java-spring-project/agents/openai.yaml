@@ -1,0 +1,4 @@
+interface:
+  display_name: "Java Spring Project"
+  short_description: "Develop Spring backends with project conventions"
+  default_prompt: "Build or modify the Java Spring backend using clean architecture and focused tests."

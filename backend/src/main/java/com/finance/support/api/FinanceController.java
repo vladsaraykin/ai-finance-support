@@ -1,12 +1,12 @@
 package com.finance.support.api;
 
+import com.finance.support.security.CurrentUser;
+
 import com.finance.support.application.FinanceService;
 import com.finance.support.application.AiProperties;
 import com.finance.support.application.OwnerProperties;
 import com.finance.support.application.RagProperties;
 import com.finance.support.application.TransactionInterpreter;
-import com.finance.support.domain.Category;
-import com.finance.support.domain.FinanceTransaction;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,13 +19,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.YearMonth;
-import java.util.Arrays;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api")
 public class FinanceController {
+    private final CurrentUser current;
     private final FinanceService financeService;
     private final TransactionInterpreter interpreter;
     private final OwnerProperties properties;
@@ -33,7 +34,8 @@ public class FinanceController {
     private final RagProperties ragProperties;
 
     public FinanceController(FinanceService financeService, TransactionInterpreter interpreter,
-                             OwnerProperties properties, AiProperties aiProperties, RagProperties ragProperties) {
+                             OwnerProperties properties, AiProperties aiProperties, RagProperties ragProperties, CurrentUser current) {
+        this.current = current;
         this.financeService = financeService;
         this.interpreter = interpreter;
         this.properties = properties;
@@ -68,6 +70,10 @@ public class FinanceController {
         return TransactionView.from(financeService.update(id, request));
     }
 
+    @org.springframework.web.bind.annotation.DeleteMapping("/transactions/{id}")
+    @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable UUID id) { financeService.delete(id); }
+
     @GetMapping("/reports/monthly")
     public MonthlyReportView monthlyReport(@RequestParam(required = false) String month) {
         YearMonth targetMonth = month == null || month.isBlank()
@@ -78,13 +84,15 @@ public class FinanceController {
 
     @GetMapping("/categories")
     public List<String> categories() {
-        return Arrays.stream(Category.values()).map(Enum::name).toList();
+        return financeService.categories();
     }
 
     @GetMapping("/config")
     public AppConfigView config() {
-        return new AppConfigView(aiProperties.enabled(), aiProperties.enabled() && ragProperties.enabled());
+        String ragScope = ragProperties.enabled() ? UUID.nameUUIDFromBytes(
+                (current.ownerId() + ":" + ragProperties.vectorStoreId()).getBytes(StandardCharsets.UTF_8)).toString() : null;
+        return new AppConfigView(aiProperties.enabled(), aiProperties.enabled() && ragProperties.enabled(), ragProperties.enabled(), ragScope);
     }
 
-    public record AppConfigView(boolean aiEnabled, boolean assistantEnabled) {}
+    public record AppConfigView(boolean aiEnabled, boolean assistantEnabled, boolean ragEnabled, String ragScope) {}
 }

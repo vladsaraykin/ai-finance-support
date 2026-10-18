@@ -1,0 +1,24 @@
+[Unit]
+Description=Finance Support API
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=finance-support
+Group=finance-support
+WorkingDirectory=/opt/finance-support
+EnvironmentFile=/etc/finance-support/backend.env
+ExecStart=/usr/bin/java -Xms128m -Xmx1024m -jar /opt/finance-support/backend/finance-support.jar
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+SuccessExitStatus=143
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

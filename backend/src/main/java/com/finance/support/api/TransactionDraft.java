@@ -18,5 +18,11 @@ public record TransactionDraft(
         @NotNull OffsetDateTime occurredAt,
         @NotNull Category category,
         @Size(max = 160) String merchant,
-        @Size(max = 500) String description
-) {}
+        @Size(max = 500) String description,
+        @Pattern(regexp = "Карта|Наличные|Перевод|Другое") String paymentMethod
+) {
+    public TransactionDraft(TransactionType type, BigDecimal amount, String currency, OffsetDateTime occurredAt,
+                            Category category, String merchant, String description) {
+        this(type, amount, currency, occurredAt, category, merchant, description, "Карта");
+    }
+}

@@ -25,8 +25,8 @@ public class FinanceTransactionRepository {
     public FinanceTransaction save(UUID ownerId, String requestKey, FinanceTransaction transaction) {
         jdbc.sql("""
                 INSERT INTO finance_transactions
-                    (id, owner_id, request_key, transaction_type, amount, currency, occurred_at, category, merchant, description)
-                VALUES (:id, :ownerId, :requestKey, :type, :amount, :currency, :occurredAt, :category, :merchant, :description)
+                    (id, owner_id, request_key, transaction_type, amount, currency, occurred_at, category, merchant, description, payment_method)
+                VALUES (:id, :ownerId, :requestKey, :type, :amount, :currency, :occurredAt, :category, :merchant, :description, :paymentMethod)
                 ON CONFLICT (owner_id, request_key) DO NOTHING
                 """)
                 .param("id", transaction.id())
@@ -39,15 +39,18 @@ public class FinanceTransactionRepository {
                 .param("category", transaction.category().name())
                 .param("merchant", transaction.merchant())
                 .param("description", transaction.description())
+                .param("paymentMethod", transaction.paymentMethod())
                 .update();
 
-        return findByRequestKey(ownerId, requestKey).orElseThrow();
+        return findByRequestKey(ownerId, requestKey)
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.CONFLICT, "Операция с этим ключом уже удалена."));
     }
 
     public Optional<FinanceTransaction> findByRequestKey(UUID ownerId, String requestKey) {
         return jdbc.sql("""
-                SELECT id, transaction_type, amount, currency, occurred_at, category, merchant, description
-                FROM finance_transactions WHERE owner_id = :ownerId AND request_key = :requestKey
+                SELECT id, transaction_type, amount, currency, occurred_at, category, merchant, description, payment_method
+                FROM finance_transactions WHERE owner_id = :ownerId AND request_key = :requestKey AND deleted_at IS NULL
                 """)
                 .param("ownerId", ownerId)
                 .param("requestKey", requestKey)
@@ -57,10 +60,10 @@ public class FinanceTransactionRepository {
 
     public List<FinanceTransaction> findByPeriod(UUID ownerId, OffsetDateTime from, OffsetDateTime to) {
         return jdbc.sql("""
-                SELECT id, transaction_type, amount, currency, occurred_at, category, merchant, description
+                SELECT id, transaction_type, amount, currency, occurred_at, category, merchant, description, payment_method
                 FROM finance_transactions
-                WHERE owner_id = :ownerId AND occurred_at >= :from AND occurred_at < :to
-                ORDER BY occurred_at DESC, id
+                WHERE owner_id = :ownerId AND deleted_at IS NULL AND occurred_at >= :from AND occurred_at < :to
+                ORDER BY created_at DESC, occurred_at DESC, id
                 """)
                 .param("ownerId", ownerId)
                 .param("from", from)
@@ -73,8 +76,8 @@ public class FinanceTransactionRepository {
         int count = jdbc.sql("""
                 UPDATE finance_transactions
                 SET transaction_type = :type, amount = :amount, currency = :currency, occurred_at = :occurredAt,
-                    category = :category, merchant = :merchant, description = :description, updated_at = now()
-                WHERE owner_id = :ownerId AND id = :id
+                    category = :category, merchant = :merchant, description = :description, payment_method = :paymentMethod, updated_at = now()
+                WHERE owner_id = :ownerId AND id = :id AND deleted_at IS NULL
                 """)
                 .param("type", transaction.type().name())
                 .param("amount", transaction.amount())
@@ -83,17 +86,32 @@ public class FinanceTransactionRepository {
                 .param("category", transaction.category().name())
                 .param("merchant", transaction.merchant())
                 .param("description", transaction.description())
+                .param("paymentMethod", transaction.paymentMethod())
                 .param("ownerId", ownerId)
                 .param("id", id)
                 .update();
         return count == 0 ? Optional.empty() : Optional.of(transaction);
     }
 
+    public List<String> categories(UUID ownerId) {
+        return jdbc.sql("""
+                SELECT DISTINCT category FROM finance_transactions
+                WHERE owner_id = :ownerId AND deleted_at IS NULL ORDER BY category
+                """).param("ownerId", ownerId).query(String.class).list();
+    }
+
+    public boolean softDelete(UUID ownerId, UUID id) {
+        return jdbc.sql("""
+                UPDATE finance_transactions SET deleted_at = now(), updated_at = now()
+                WHERE owner_id = :ownerId AND id = :id AND deleted_at IS NULL
+                """).param("ownerId", ownerId).param("id", id).update() == 1;
+    }
+
     public List<CategoryTotal> categoryTotals(UUID ownerId, OffsetDateTime from, OffsetDateTime to, TransactionType type) {
         return jdbc.sql("""
                 SELECT category, currency, SUM(amount) AS total, COUNT(*) AS transaction_count
                 FROM finance_transactions
-                WHERE owner_id = :ownerId AND occurred_at >= :from AND occurred_at < :to
+                WHERE owner_id = :ownerId AND deleted_at IS NULL AND occurred_at >= :from AND occurred_at < :to
                   AND transaction_type = :type
                 GROUP BY category, currency
                 ORDER BY SUM(amount) DESC, category
@@ -114,7 +132,7 @@ public class FinanceTransactionRepository {
         return jdbc.sql("""
                 SELECT COALESCE(SUM(amount), 0.00)
                 FROM finance_transactions
-                WHERE owner_id = :ownerId AND occurred_at >= :from AND occurred_at < :to
+                WHERE owner_id = :ownerId AND deleted_at IS NULL AND occurred_at >= :from AND occurred_at < :to
                   AND transaction_type = :type
                 """)
                 .param("ownerId", ownerId)
@@ -134,7 +152,7 @@ public class FinanceTransactionRepository {
                 rs.getObject("occurred_at", OffsetDateTime.class),
                 Category.valueOf(rs.getString("category")),
                 rs.getString("merchant"),
-                rs.getString("description"));
+                rs.getString("description"), rs.getString("payment_method"));
     }
 
     public record CategoryTotal(Category category, String currency, BigDecimal total, long transactionCount) {}

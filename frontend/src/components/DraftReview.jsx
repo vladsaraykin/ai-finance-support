@@ -41,10 +41,15 @@ export default function DraftReview({ drafts, onChange, onConfirm, onCancel, bus
               </select>
             </label>
             <label>
-              <span>Место или описание</span>
+              <span>Магазин или получатель</span>
               <input value={draft.merchant ?? ''} maxLength={160} placeholder="Например, Такси"
                 onChange={(event) => update(index, 'merchant', event.target.value)} />
             </label>
+            <label><span>Описание</span><input value={draft.description ?? ''} maxLength={500}
+              onChange={(event) => update(index, 'description', event.target.value)} /></label>
+            <label><span>Способ оплаты</span><select value={draft.paymentMethod ?? 'Карта'} onChange={(event) => update(index, 'paymentMethod', event.target.value)}>
+              {['Карта', 'Наличные', 'Перевод', 'Другое'].map((value) => <option key={value}>{value}</option>)}
+            </select></label>
             <label>
               <span>Дата</span>
               <input type="date" value={dateInputValue(draft.occurredAt)}

@@ -1,0 +1,12 @@
+# Set APP_DOMAIN=:80 for HTTP, or APP_DOMAIN=ai-finance.com for HTTPS.
+{$APP_DOMAIN} {
+    handle /api/* {
+        reverse_proxy 127.0.0.1:8080
+        header Cache-Control "no-store"
+    }
+    handle {
+        root * /opt/finance-support/frontend/dist
+        try_files {path} /index.html
+        file_server
+    }
+}

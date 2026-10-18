@@ -1,5 +1,7 @@
 package com.finance.support.application;
 
+import com.finance.support.security.CurrentUser;
+
 import com.finance.support.api.MonthlyReportView;
 import com.finance.support.api.TransactionDraft;
 import com.finance.support.domain.FinanceTransaction;
@@ -18,10 +20,12 @@ import java.util.UUID;
 public class FinanceService {
     private final FinanceTransactionRepository repository;
     private final OwnerProperties properties;
+    private final CurrentUser current;
 
-    public FinanceService(FinanceTransactionRepository repository, OwnerProperties properties) {
+    public FinanceService(FinanceTransactionRepository repository, OwnerProperties properties, CurrentUser current) {
         this.repository = repository;
         this.properties = properties;
+        this.current = current;
     }
 
     @Transactional
@@ -39,7 +43,7 @@ public class FinanceService {
         if (!"RUB".equals(currency)) {
             throw new IllegalArgumentException("В MVP поддерживается только RUB.");
         }
-        UUID ownerId = properties.ownerId();
+        UUID ownerId = current.ownerId();
         String requestKey = idempotencyKey;
         return java.util.stream.IntStream.range(0, drafts.size())
                 .mapToObj(index -> repository.save(ownerId, requestKey + ":" + index, fromDraft(drafts.get(index))))
@@ -48,7 +52,7 @@ public class FinanceService {
 
     public List<FinanceTransaction> list(YearMonth month) {
         Period period = period(month);
-        return repository.findByPeriod(properties.ownerId(), period.from(), period.to());
+        return repository.findByPeriod(current.ownerId(), period.from(), period.to());
     }
 
     public FinanceTransaction update(UUID id, TransactionDraft draft) {
@@ -56,18 +60,28 @@ public class FinanceService {
             throw new IllegalArgumentException("В MVP поддерживается только RUB.");
         }
         FinanceTransaction update = new FinanceTransaction(id, draft.type(), draft.amount(), draft.currency(),
-                draft.occurredAt(), draft.category(), draft.merchant(), draft.description());
-        return repository.update(properties.ownerId(), id, update)
+                draft.occurredAt(), draft.category(), draft.merchant(), draft.description(), draft.paymentMethod());
+        return repository.update(current.ownerId(), id, update)
                 .orElseThrow(() -> new TransactionNotFoundException(id));
+    }
+
+    public List<String> categories() {
+        return java.util.stream.Stream.concat(
+                java.util.Arrays.stream(com.finance.support.domain.Category.values()).map(com.finance.support.domain.Category::name),
+                repository.categories(current.ownerId()).stream()).distinct().toList();
+    }
+
+    public void delete(UUID id) {
+        if (!repository.softDelete(current.ownerId(), id)) throw new TransactionNotFoundException(id);
     }
 
     public MonthlyReportView report(YearMonth month) {
         Period period = period(month);
-        BigDecimal income = repository.sumByType(properties.ownerId(), period.from(), period.to(), TransactionType.INCOME);
-        BigDecimal expenses = repository.sumByType(properties.ownerId(), period.from(), period.to(), TransactionType.EXPENSE);
+        BigDecimal income = repository.sumByType(current.ownerId(), period.from(), period.to(), TransactionType.INCOME);
+        BigDecimal expenses = repository.sumByType(current.ownerId(), period.from(), period.to(), TransactionType.EXPENSE);
         long transactionCount = list(month).size();
         List<MonthlyReportView.CategoryTotalView> categories = repository.categoryTotals(
-                        properties.ownerId(), period.from(), period.to(), TransactionType.EXPENSE)
+                        current.ownerId(), period.from(), period.to(), TransactionType.EXPENSE)
                 .stream()
                 .map(item -> new MonthlyReportView.CategoryTotalView(item.category().name(),
                         item.total().toPlainString(), item.transactionCount()))
@@ -79,7 +93,8 @@ public class FinanceService {
     private FinanceTransaction fromDraft(TransactionDraft draft) {
         if (draft.amount().signum() <= 0) throw new IllegalArgumentException("Сумма должна быть больше нуля.");
         return new FinanceTransaction(UUID.randomUUID(), draft.type(), draft.amount().setScale(2), draft.currency(),
-                draft.occurredAt(), draft.category(), draft.merchant(), draft.description());
+                draft.occurredAt(), draft.category(), draft.merchant(), draft.description(),
+                draft.paymentMethod() == null ? "Карта" : draft.paymentMethod());
     }
 
     private Period period(YearMonth month) {

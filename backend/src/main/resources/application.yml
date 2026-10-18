@@ -1,6 +1,17 @@
 server:
   port: ${SERVER_PORT:8080}
   address: ${SERVER_ADDRESS:127.0.0.1}
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      internal-proxies: '127\.0\.0\.1|::1|0:0:0:0:0:0:0:1'
+  servlet:
+    session:
+      timeout: 30m
+      cookie:
+        http-only: true
+        secure: ${SESSION_COOKIE_SECURE:false}
+        same-site: lax
 
 spring:
   application:
@@ -22,16 +33,9 @@ app:
     base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
   rag:
     enabled: ${RAG_ENABLED:false}
-    inference-url: ${RAG_INFERENCE_URL:http://192.168.1.34:7997}
-    inference-api-key: ${RAG_INFERENCE_API_KEY:}
-    qdrant-url: ${RAG_QDRANT_URL:http://192.168.1.34:6333}
-    qdrant-api-key: ${RAG_QDRANT_API_KEY:}
-    collection: ${RAG_COLLECTION:finance_knowledge}
-    embedding-model: ${RAG_EMBEDDING_MODEL:BAAI/bge-m3}
-    reranker-model: ${RAG_RERANKER_MODEL:Alibaba-NLP/gte-multilingual-reranker-base}
-    vector-size: ${RAG_VECTOR_SIZE:1024}
-    candidate-count: ${RAG_CANDIDATE_COUNT:12}
+    vector-store-id: ${OPENAI_VECTOR_STORE_ID:}
     result-count: ${RAG_RESULT_COUNT:5}
+    score-threshold: ${RAG_SCORE_THRESHOLD:0.0}
 
 logging:
   level:

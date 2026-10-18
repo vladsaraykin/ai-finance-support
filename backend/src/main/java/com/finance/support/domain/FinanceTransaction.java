@@ -12,5 +12,6 @@ public record FinanceTransaction(
         OffsetDateTime occurredAt,
         Category category,
         String merchant,
-        String description
+        String description,
+        String paymentMethod
 ) {}

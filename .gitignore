@@ -1,9 +1,28 @@
+# Local editor and OS files
 .DS_Store
 .idea/
+
+# Secrets and machine-specific configuration
 **/.env
-**/.env.local
+**/.env.*
+!**/.env.example
+*.env
+.pgpass
+*.pgpass
+
+# Build output and dependency caches
 backend/target/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+/dist/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
 *.log
+
+# Personal imports and database backups
+data/import/
+*.dump
+*.sql.gz

@@ -5,6 +5,10 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,8 +23,14 @@ public class KnowledgeController {
     }
 
     @PostMapping("/documents")
-    public RagKnowledgeService.IngestResult ingest(@Valid @RequestBody IngestDocumentRequest request) {
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public RagKnowledgeService.DocumentStatus ingest(@Valid @RequestBody IngestDocumentRequest request) {
         return knowledgeService.ingest(request.title(), request.source(), request.documentType(), request.text());
+    }
+
+    @GetMapping("/documents/{fileId}")
+    public RagKnowledgeService.DocumentStatus status(@PathVariable String fileId) {
+        return knowledgeService.status(fileId);
     }
 
     public record IngestDocumentRequest(

@@ -1,6 +1,7 @@
 package com.finance.support.api;
 
 import com.finance.support.application.TransactionNotFoundException;
+import com.finance.support.application.KnowledgeDocumentNotFoundException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -32,6 +33,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ApiError> serviceUnavailable(IllegalStateException exception) {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(new ApiError(exception.getMessage()));
+    }
+
+    @ExceptionHandler(KnowledgeDocumentNotFoundException.class)
+    public ResponseEntity<ApiError> documentNotFound(KnowledgeDocumentNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiError("Документ не найден."));
     }
 
     public record ApiError(String message) {}

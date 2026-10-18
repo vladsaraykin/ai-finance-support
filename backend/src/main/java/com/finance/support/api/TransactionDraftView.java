@@ -9,10 +9,11 @@ public record TransactionDraftView(
         OffsetDateTime occurredAt,
         String category,
         String merchant,
-        String description
+        String description,
+        String paymentMethod
 ) {
     public static TransactionDraftView from(TransactionDraft draft) {
         return new TransactionDraftView(draft.type().name(), draft.amount().toPlainString(), draft.currency(),
-                draft.occurredAt(), draft.category().name(), draft.merchant(), draft.description());
+                draft.occurredAt(), draft.category().name(), draft.merchant(), draft.description(), draft.paymentMethod());
     }
 }

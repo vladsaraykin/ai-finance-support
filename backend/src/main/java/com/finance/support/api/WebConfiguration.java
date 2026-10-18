@@ -22,7 +22,8 @@ public class WebConfiguration implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
                 .allowedOrigins(allowedOrigins)
-                .allowedMethods("GET", "POST", "PUT", "OPTIONS")
-                .allowedHeaders("Content-Type", "Idempotency-Key");
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedHeaders("Content-Type", "Idempotency-Key", "X-CSRF-TOKEN")
+                .allowCredentials(true);
     }
 }

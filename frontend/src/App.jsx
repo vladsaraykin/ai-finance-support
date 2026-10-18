@@ -1,19 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { financeApi } from './api.js';
+import { newRequestId } from './request-id.js';
 import { currentMoscowMonth, formatMonth, moveMonth } from './finance-format.js';
 import DraftReview from './components/DraftReview.jsx';
 import AssistantPanel from './components/AssistantPanel.jsx';
 import KnowledgeDocumentForm from './components/KnowledgeDocumentForm.jsx';
 import MonthlyReport from './components/MonthlyReport.jsx';
 import TransactionComposer from './components/TransactionComposer.jsx';
+import AuthBoundary from './components/AuthBoundary.jsx';
 import TransactionsList from './components/TransactionsList.jsx';
 
 export default function App() {
+  return <AuthBoundary>{(user, logout, busy) => <FinanceWorkspace key={user.id} user={user} onLogout={logout} loggingOut={busy} />}</AuthBoundary>;
+}
+
+function FinanceWorkspace({ user, onLogout, loggingOut }) {
+  const confirmationKey = useRef(null);
   const [month, setMonth] = useState(currentMoscowMonth);
+  const [categories, setCategories] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [report, setReport] = useState(null);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [assistantEnabled, setAssistantEnabled] = useState(false);
+  const [ragEnabled, setRagEnabled] = useState(false);
   const [drafts, setDrafts] = useState([]);
   const [entryText, setEntryText] = useState('');
   const [loading, setLoading] = useState(true);
@@ -30,13 +39,15 @@ export default function App() {
     let active = true;
     setLoading(true);
     setPageError('');
-    Promise.all([financeApi.listTransactions(month), financeApi.monthlyReport(month), financeApi.getConfig()])
-      .then(([entries, monthlyReport, config]) => {
+    Promise.all([financeApi.listTransactions(month), financeApi.monthlyReport(month), financeApi.getConfig(), financeApi.categories()])
+      .then(([entries, monthlyReport, config, categoryOptions]) => {
         if (!active) return;
         setTransactions(entries);
+        setCategories(categoryOptions);
         setReport(monthlyReport);
         setAiEnabled(config.aiEnabled);
         setAssistantEnabled(config.assistantEnabled);
+        setRagEnabled(config.ragEnabled);
       })
       .catch((error) => {
         if (active) setPageError(error.message);
@@ -55,6 +66,7 @@ export default function App() {
     setNotice('');
     try {
       const parsed = await financeApi.parseText(entryText.trim());
+      confirmationKey.current = newRequestId();
       setDrafts(parsed.transactions.map((draft) => ({ ...draft, amount: String(draft.amount) })));
       setFormHint(parsed.clarificationQuestion ?? '');
     } catch (error) {
@@ -68,7 +80,8 @@ export default function App() {
     setSaving(true);
     setFormError('');
     try {
-      await financeApi.createTransactions(drafts);
+      await financeApi.createTransactions(drafts, confirmationKey.current ??= newRequestId());
+      confirmationKey.current = null;
       setDrafts([]);
       setEntryText('');
       setNotice('Операции сохранены. Отчёт пересчитан по данным финансовой базы.');
@@ -96,6 +109,18 @@ export default function App() {
     }
   }
 
+  async function deleteTransaction(id) {
+    setSavingId(id);
+    setNotice('');
+    try {
+      await financeApi.deleteTransaction(id);
+      setNotice('Операция удалена.');
+      setReloadKey((key) => key + 1);
+      return true;
+    } catch (error) { setNotice(error.message); return false; }
+    finally { setSavingId(null); }
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -104,6 +129,7 @@ export default function App() {
           <span>финансы</span>
         </a>
         <nav aria-label="Основная навигация"><a className="nav-current" href="#overview">Обзор</a></nav>
+        <div className="account-actions"><span>{user.login}</span><button type="button" className="text-button" onClick={onLogout} disabled={loggingOut}>Выйти</button></div>
       </header>
 
       <main id="overview" className="page-content">
@@ -128,7 +154,7 @@ export default function App() {
             <TransactionComposer value={entryText} onChange={setEntryText} onSubmit={parseText}
               busy={parsing} error={formError} hint={formHint} aiEnabled={aiEnabled} />
             <DraftReview drafts={drafts} onChange={setDrafts} onConfirm={confirmDrafts}
-              onCancel={() => { setDrafts([]); setFormError(''); setFormHint(''); }} busy={saving} />
+              onCancel={() => { confirmationKey.current = null; setDrafts([]); setFormError(''); setFormHint(''); }} busy={saving} />
           </div>
           <aside className="report-column">
             <MonthlyReport report={report} monthLabel={formatMonth(month)}
@@ -139,10 +165,10 @@ export default function App() {
 
         <div className="assistant-grid">
           <AssistantPanel enabled={assistantEnabled} />
-          <KnowledgeDocumentForm enabled={assistantEnabled} />
+          <KnowledgeDocumentForm enabled={ragEnabled} />
         </div>
 
-        <TransactionsList transactions={transactions} onSave={saveTransaction} savingId={savingId} />
+        <TransactionsList transactions={transactions} categories={categories} onSave={saveTransaction} onDelete={deleteTransaction} savingId={savingId} />
 
         <footer className="page-footer">
           <span>Расчёты основаны на сохранённых операциях.</span>

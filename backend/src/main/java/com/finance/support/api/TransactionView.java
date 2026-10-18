@@ -13,11 +13,12 @@ public record TransactionView(
         OffsetDateTime occurredAt,
         String category,
         String merchant,
-        String description
+        String description,
+        String paymentMethod
 ) {
     public static TransactionView from(FinanceTransaction transaction) {
         return new TransactionView(transaction.id(), transaction.type().name(), transaction.amount().toPlainString(),
                 transaction.currency(), transaction.occurredAt(), transaction.category().name(),
-                transaction.merchant(), transaction.description());
+                transaction.merchant(), transaction.description(), transaction.paymentMethod());
     }
 }
